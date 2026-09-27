@@ -24,7 +24,14 @@ hundreds of pairs in one run. Output is a lean JSONL of confident matches only.
 ## Requirements
 
 - Python 3.10+
-- NVIDIA GPU with ~5 GB free VRAM (6 GB card, realistic budget)
+- NVIDIA GPU with ~5 GB free VRAM (6 GB card, realistic budget) — this is
+  the bnb 4-bit path's *GPU* footprint. Loading it also needs ~8-10 GB of
+  *system RAM* to stage the full bf16 checkpoint before quantizing, which can
+  thrash into swap and never finish on a RAM-constrained machine (e.g. 13 GB
+  total, shared with other processes) even though the GPU itself has plenty
+  of free VRAM. If that happens, use the llama.cpp/GGUF backend with
+  `--gpu-layers -1` instead (see the GGUF section below) — it offloads an
+  already-quantized file straight to GPU with no RAM staging step.
 - CPU-only machines also work. Three paths, fastest last:
   - HuggingFace bf16 (default): weights are memory-mapped; even the 4B model
     runs, just slowly (~3-11 min/pair). int8 weight-only via torchao is
@@ -34,7 +41,8 @@ hundreds of pairs in one run. Output is a lean JSONL of confident matches only.
   - llama.cpp: pass a GGUF file with `--model path/to/model.gguf` (requires
     `llama-cpp-python`). Roughly 2x faster than HF bf16 at a fraction of the
     memory, with quant levels from Q2_K up to Q8_0 to trade speed for
-    precision. See the GGUF section below.
+    precision. Add `--gpu-layers -1` (needs a CUDA-enabled build) to offload
+    the whole model to GPU instead. See the GGUF section below.
 - Dependencies:
 
 ```bash
@@ -132,6 +140,53 @@ of the memory of HF bf16. Note that Q8_0 is *faster* than Q4_K_M here:
 K-quant decompression costs more CPU per weight than Q8_0's simpler layout,
 so on this device the quant ladder trades memory, not speed.
 
+#### GPU offload (`--gpu-layers`)
+
+The GGUF/llama.cpp backend can also target the GPU directly, sidestepping
+bitsandbytes' RAM-heavy staging step entirely: llama.cpp memory-maps the
+already-quantized file and offloads layers straight to VRAM. Requires
+`llama-cpp-python` built with CUDA support:
+
+```bash
+CMAKE_ARGS="-DGGML_CUDA=on" FORCE_CMAKE=1 pip install --force-reinstall --no-cache-dir llama-cpp-python
+# on weak/shared machines, throttle the build like the CPU case:
+# nice -n 19 env CMAKE_BUILD_PARALLEL_LEVEL=2 CMAKE_ARGS="-DGGML_CUDA=on" FORCE_CMAKE=1 pip install ...
+
+python job_matcher.py --resumes "resumes/*.md" --jobs "jobs/*.md" --mode classify \
+    --model path/to/Qwen3-4B-Instruct-2507-Q4_K_M.gguf --gpu-layers -1
+```
+
+`--gpu-layers -1` offloads every layer; a positive number offloads that many
+layers and leaves the rest on CPU, for GPUs too small to hold the whole
+model.
+
+#### Full mode sweep: Qwen3-4B, CPU vs GPU offload (16-core x86_64, RTX 3060 Laptop 6 GB, 13 GB system RAM)
+
+Full 28-pair sweep (7 resumes x 4 jobs) per mode, GGUF Q4_K_M,
+`--min-strong 0.0`. Both backends pass the ranking proof (QA roles top,
+Delphi last) for every mode below — the 4B model discriminates decisively
+regardless of CPU or GPU:
+
+| Mode | CPU (llama.cpp, all cores) | GPU (`--gpu-layers -1`) | Speedup |
+|---|---|---|---|
+| embed | 23m15s cold / 5.7s warm-cache (11 docs) | 11.9s | — |
+| classify | 52m48s (~113s/pair) | **1m56s** (~4.2s/pair) | ~27x |
+| rank | 17m45s (~38s/pair) | **36.5s** | ~29x |
+| category | 52m48s, 28/28 verdict agreement | **1m33s**, 28/28 verdict agreement | ~34x |
+| criteria | reduced 8-pair sample only (overlapped with an unrelated build on this run, so the number is unreliable) | **3m59s** (full 28 pairs, ~8.5s/pair) | — |
+
+Category mode's 28/28 ground-truth agreement is a large improvement over the
+1.7B CPU fallback's 14/28 (the all-"yes" baseline, above) — the 4B model,
+not the option-encoding, was the limiting factor there.
+
+The bitsandbytes 4-bit GPU path (this repo's default `--model` behavior on
+CUDA machines) could not be benchmarked on this hardware: loading it stages
+the entire bf16 checkpoint (~8 GB) in system RAM before quantizing to GPU,
+which thrashed into swap and never completed on this 13 GB RAM machine, even
+though the GPU itself has ample free VRAM. GGUF with `--gpu-layers` never
+needs that staging step, making it the more RAM-robust way to use a GPU on a
+memory-constrained machine.
+
 ### Embed mode (`--mode embed`)
 
 No generative model at all: each document is embedded once with a bi-encoder
@@ -181,4 +236,9 @@ Delphi last, for cv_1000 and cv_tim_jansen_compact). On Qwen3-1.7B the proof
 **embed mode**, where Qwen3-Embedding-0.6B passes with wide margins. The
 absolute probabilities remain weakly calibrated — usable as an indicator,
 not a decision.
+
+On Qwen3-4B (GGUF, CPU or GPU-offloaded via `--gpu-layers`), **all five
+modes pass** the ranking proof — see the full sweep table in the GGUF
+section above. The 1.7B CPU fallback's failures in criteria/category/rank
+were a model-capacity limitation, not a flaw in those scoring methods.
 

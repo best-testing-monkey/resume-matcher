@@ -237,6 +237,7 @@ class LlamaMatcher(_BaseMatcher):
         options: list[str] = OPTIONS,
         tokenizer_id: str = MODEL_ID,
         n_ctx: int = 8192,
+        n_gpu_layers: int = 0,
     ):
         from llama_cpp import Llama
 
@@ -247,6 +248,7 @@ class LlamaMatcher(_BaseMatcher):
             n_ctx=n_ctx,
             logits_all=True,
             n_threads=os.cpu_count() or 4,
+            n_gpu_layers=n_gpu_layers,
             verbose=False,
         )
 
@@ -473,6 +475,14 @@ def main():
         help="CPU only: load int8 weight-only via torchao instead of bf16",
     )
     parser.add_argument(
+        "--gpu-layers",
+        type=int,
+        default=0,
+        help="GGUF backend only: number of layers to offload to GPU via "
+        "llama.cpp (0 = CPU-only, -1 = all layers); requires a CUDA-enabled "
+        "llama-cpp-python build",
+    )
+    parser.add_argument(
         "--min-strong",
         type=float,
         default=0.3,
@@ -528,7 +538,7 @@ def main():
 
         model_arg = args.model or _default_model_id()
         if model_arg.endswith(".gguf"):
-            matcher = LlamaMatcher(model_arg)
+            matcher = LlamaMatcher(model_arg, n_gpu_layers=args.gpu_layers)
         else:
             matcher = Matcher(model_id=model_arg, int8=args.int8)
 
