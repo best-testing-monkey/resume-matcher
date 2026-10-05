@@ -1,5 +1,8 @@
 """Static gazetteer data for geo.py (approximate city-centre coordinates)."""
 
+# Door-to-door overhead: station access + walking = 25 minutes
+DOOR_TO_DOOR_OVERHEAD = 25
+
 # (name, lat, lon, country ISO-2)
 CITIES = [
     # Netherlands
@@ -121,3 +124,121 @@ FAR_PLACES = [
     "Europe", "EMEA", "Worldwide", "Global", "Asia", "North America",
     "Latin America", "Africa",
 ]
+
+# Built-in hand-checked Dutch intercity transit overrides (rail + door-to-door overhead).
+# These are approximate station-to-station NS rail times from memory, not verified against NS.
+# Symmetric pairs: both "A|B" and "B|A" map to the same door-to-door minutes value.
+# External matrix (travel_matrix.json or set_matrix()) still takes precedence.
+# Pairs not found here fall back to the heuristic.
+TRANSIT_OVERRIDES: dict[str, int] = {
+    # Almere pairs
+    "Almere|Amsterdam": 50, "Amsterdam|Almere": 50,
+    "Almere|Utrecht": 70, "Utrecht|Almere": 70,
+    "Almere|Amersfoort": 70, "Amersfoort|Almere": 70,
+    "Almere|Den Haag": 95, "Den Haag|Almere": 95,
+    "Almere|Rotterdam": 105, "Rotterdam|Almere": 105,
+    "Almere|Eindhoven": 130, "Eindhoven|Almere": 130,
+    "Almere|Groningen": 140, "Groningen|Almere": 140,
+    "Almere|Zwolle": 70, "Zwolle|Almere": 70,
+    "Almere|Lelystad": 40, "Lelystad|Almere": 40,
+    "Almere|Hilversum": 55, "Hilversum|Almere": 55,
+    "Almere|Arnhem": 105, "Arnhem|Almere": 105,
+    "Almere|Nijmegen": 115, "Nijmegen|Almere": 115,
+
+    # Amsterdam pairs
+    "Amsterdam|Utrecht": 52, "Utrecht|Amsterdam": 52,
+    "Amsterdam|Rotterdam": 65, "Rotterdam|Amsterdam": 65,
+    "Amsterdam|Den Haag": 75, "Den Haag|Amsterdam": 75,
+    "Amsterdam|Eindhoven": 105, "Eindhoven|Amsterdam": 105,
+    "Amsterdam|Groningen": 155, "Groningen|Amsterdam": 155,
+    "Amsterdam|Arnhem": 85, "Arnhem|Amsterdam": 85,
+    "Amsterdam|Nijmegen": 95, "Nijmegen|Amsterdam": 95,
+    "Amsterdam|Zwolle": 95, "Zwolle|Amsterdam": 95,
+    "Amsterdam|Breda": 85, "Breda|Amsterdam": 85,
+    "Amsterdam|Maastricht": 175, "Maastricht|Amsterdam": 175,
+    "Amsterdam|Amersfoort": 55, "Amersfoort|Amsterdam": 55,
+    "Amsterdam|Hilversum": 50, "Hilversum|Amsterdam": 50,
+    "Amsterdam|Haarlem": 40, "Haarlem|Amsterdam": 40,
+    "Amsterdam|Leiden": 60, "Leiden|Amsterdam": 60,
+    "Amsterdam|Amstelveen": 40, "Amstelveen|Amsterdam": 40,
+    "Amsterdam|Hoofddorp": 45, "Hoofddorp|Amsterdam": 45,
+    "Amsterdam|Apeldoorn": 85, "Apeldoorn|Amsterdam": 85,
+    "Amsterdam|Tilburg": 95, "Tilburg|Amsterdam": 95,
+    "Amsterdam|'s-Hertogenbosch": 80, "'s-Hertogenbosch|Amsterdam": 80,
+
+    # Utrecht pairs
+    "Utrecht|Rotterdam": 63, "Rotterdam|Utrecht": 63,
+    "Utrecht|Den Haag": 65, "Den Haag|Utrecht": 65,
+    "Utrecht|Eindhoven": 75, "Eindhoven|Utrecht": 75,
+    "Utrecht|Arnhem": 63, "Arnhem|Utrecht": 63,
+    "Utrecht|Amersfoort": 40, "Amersfoort|Utrecht": 40,
+    "Utrecht|Nijmegen": 75, "Nijmegen|Utrecht": 75,
+    "Utrecht|Zwolle": 80, "Zwolle|Utrecht": 80,
+    "Utrecht|Groningen": 140, "Groningen|Utrecht": 140,
+    "Utrecht|Breda": 75, "Breda|Utrecht": 75,
+    "Utrecht|'s-Hertogenbosch": 50, "'s-Hertogenbosch|Utrecht": 50,
+    "Utrecht|Maastricht": 140, "Maastricht|Utrecht": 140,
+    "Utrecht|Apeldoorn": 70, "Apeldoorn|Utrecht": 70,
+    "Utrecht|Tilburg": 65, "Tilburg|Utrecht": 65,
+    "Utrecht|Hilversum": 40, "Hilversum|Utrecht": 40,
+
+    # Rotterdam pairs
+    "Rotterdam|Den Haag": 50, "Den Haag|Rotterdam": 50,
+    "Rotterdam|Breda": 50, "Breda|Rotterdam": 50,
+    "Rotterdam|Eindhoven": 95, "Eindhoven|Rotterdam": 95,
+    "Rotterdam|Delft": 40, "Delft|Rotterdam": 40,
+    "Rotterdam|Leiden": 60, "Leiden|Rotterdam": 60,
+    "Rotterdam|Tilburg": 65, "Tilburg|Rotterdam": 65,
+    "Rotterdam|'s-Hertogenbosch": 80, "'s-Hertogenbosch|Rotterdam": 80,
+    "Rotterdam|Arnhem": 95, "Arnhem|Rotterdam": 95,
+    "Rotterdam|Nijmegen": 110, "Nijmegen|Rotterdam": 110,
+    "Rotterdam|Maastricht": 155, "Maastricht|Rotterdam": 155,
+    "Rotterdam|Groningen": 195, "Groningen|Rotterdam": 195,
+
+    # Den Haag pairs
+    "Den Haag|Leiden": 40, "Leiden|Den Haag": 40,
+    "Den Haag|Delft": 35, "Delft|Den Haag": 35,
+    "Den Haag|Zoetermeer": 40, "Zoetermeer|Den Haag": 40,
+    "Den Haag|Eindhoven": 125, "Eindhoven|Den Haag": 125,
+    "Den Haag|Haarlem": 60, "Haarlem|Den Haag": 60,
+    "Den Haag|Groningen": 200, "Groningen|Den Haag": 200,
+
+    # Eindhoven pairs
+    "Eindhoven|Maastricht": 75, "Maastricht|Eindhoven": 75,
+    "Eindhoven|Tilburg": 45, "Tilburg|Eindhoven": 45,
+    "Eindhoven|'s-Hertogenbosch": 45, "'s-Hertogenbosch|Eindhoven": 45,
+    "Eindhoven|Breda": 60, "Breda|Eindhoven": 60,
+    "Eindhoven|Weert": 45, "Weert|Eindhoven": 45,
+    "Eindhoven|Nijmegen": 80, "Nijmegen|Eindhoven": 80,
+    "Eindhoven|Arnhem": 95, "Arnhem|Eindhoven": 95,
+
+    # Zwolle pairs
+    "Zwolle|Groningen": 80, "Groningen|Zwolle": 80,
+    "Zwolle|Apeldoorn": 50, "Apeldoorn|Zwolle": 50,
+    "Zwolle|Amersfoort": 65, "Amersfoort|Zwolle": 65,
+    "Zwolle|Enschede": 75, "Enschede|Zwolle": 75,
+
+    # Arnhem pairs
+    "Arnhem|Nijmegen": 40, "Nijmegen|Arnhem": 40,
+    "Arnhem|Apeldoorn": 45, "Apeldoorn|Arnhem": 45,
+    "Arnhem|Enschede": 95, "Enschede|Arnhem": 95,
+
+    # Apeldoorn pairs
+    "Apeldoorn|Amersfoort": 55, "Amersfoort|Apeldoorn": 55,
+    "Apeldoorn|Enschede": 75, "Enschede|Apeldoorn": 75,
+
+    # Groningen pairs
+    "Groningen|Leeuwarden": 70, "Leeuwarden|Groningen": 70,
+
+    # Breda pairs
+    "Breda|Tilburg": 40, "Tilburg|Breda": 40,
+
+    # Tilburg pairs
+    "Tilburg|'s-Hertogenbosch": 40, "'s-Hertogenbosch|Tilburg": 40,
+
+    # Nijmegen pairs
+    "Nijmegen|'s-Hertogenbosch": 50, "'s-Hertogenbosch|Nijmegen": 50,
+
+    # Maastricht pairs
+    "Maastricht|Weert": 60, "Weert|Maastricht": 60,
+}

@@ -99,3 +99,62 @@ def test_matrix_override():
     geo.set_matrix({"car": {"Amsterdam|Almere": 99}})
     assert travel_time("Almere", "Amsterdam", "On-site", "car").minutes == 99
     assert travel_time("Almere", "Amsterdam", "On-site", "transit").minutes != 99
+
+
+def test_transit_override_almere_den_haag():
+    """Almere->Den Haag: 70 rail min + 25 door-to-door = 95 min."""
+    result = travel_time("Almere", "Den Haag", "On-site", "transit")
+    assert result.status == "ok"
+    assert 90 <= result.minutes <= 110, f"Expected ~95 min, got {result.minutes}"
+
+
+def test_transit_override_amsterdam_utrecht():
+    """Amsterdam->Utrecht: 27 rail min + 25 door-to-door = 52 min."""
+    result = travel_time("Amsterdam", "Utrecht", "On-site", "transit")
+    assert result.status == "ok"
+    assert result.minutes == 52, f"Expected 52 min, got {result.minutes}"
+
+
+def test_transit_override_symmetric():
+    """Symmetric pair lookup: both A->B and B->A give same result."""
+    ab = transit_minutes(resolve_location("Almere"), resolve_location("Den Haag"))
+    ba = transit_minutes(resolve_location("Den Haag"), resolve_location("Almere"))
+    assert ab == ba, f"Asymmetric: Almere->Den Haag={ab}, Den Haag->Almere={ba}"
+
+
+def test_matrix_override_beats_transit_override():
+    """External matrix override takes precedence over built-in transit override."""
+    # Built-in override for Amsterdam|Utrecht is 52
+    # But set it to 999 in the matrix
+    geo.set_matrix({"transit": {"Amsterdam|Utrecht": 999}})
+    result = travel_time("Amsterdam", "Utrecht", "On-site", "transit")
+    assert result.minutes == 999, f"Matrix should win, got {result.minutes}"
+    # Also test reverse order
+    result2 = travel_time("Utrecht", "Amsterdam", "On-site", "transit")
+    assert result2.minutes == 999, f"Matrix should win (reverse), got {result2.minutes}"
+
+
+def test_transit_override_not_in_table_uses_heuristic():
+    """Pairs not in TRANSIT_OVERRIDES fall back to heuristic."""
+    # Helsinki is not in the override table, should use heuristic
+    # (and since it's far, should return too_far, but let's test with a closer city)
+    # Enschede->Leiden is not in the override table
+    result = travel_time("Enschede", "Leiden", "On-site", "transit")
+    assert result.status == "ok"
+    # Just check it's reasonable (should be ~150-200 km by heuristic)
+    assert result.minutes > 70  # Definitely longer than the shortest override
+
+
+def test_almere_groningen_eindhoven_overrides():
+    """Test specific Almere pairs mentioned in the task."""
+    # Almere->Den Haag: 70+25=95
+    result_den_haag = travel_time("Almere", "Den Haag", "On-site", "transit")
+    assert result_den_haag.minutes == 95
+
+    # Almere->Groningen: 115+25=140
+    result_groningen = travel_time("Almere", "Groningen", "On-site", "transit")
+    assert result_groningen.minutes == 140
+
+    # Almere->Eindhoven: 105+25=130
+    result_eindhoven = travel_time("Almere", "Eindhoven", "On-site", "transit")
+    assert result_eindhoven.minutes == 130

@@ -30,7 +30,8 @@ import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
-from geo_data import CITIES, CITY_ALIASES, FAR_PLACES, REGIONS
+from geo_data import (CITIES, CITY_ALIASES, FAR_PLACES, REGIONS, TRANSIT_OVERRIDES,
+                      DOOR_TO_DOOR_OVERHEAD)
 
 ROAD_FACTOR = 1.3
 
@@ -154,10 +155,23 @@ def _override(mode: str, a: City, b: City) -> int | None:
     return None
 
 
+def _transit_override(a: City, b: City) -> int | None:
+    """Check built-in transit overrides (symmetric lookup by canonical city names)."""
+    for key in (f"{a.name}|{b.name}", f"{b.name}|{a.name}"):
+        if key in TRANSIT_OVERRIDES:
+            return TRANSIT_OVERRIDES[key]
+    return None
+
+
 def _estimate(mode: str, a: City, b: City) -> int:
     ov = _override(mode, a, b)
     if ov is not None:
         return ov
+    # For transit, check built-in overrides before heuristic.
+    if mode == "transit":
+        ov = _transit_override(a, b)
+        if ov is not None:
+            return ov
     d = haversine_km(a, b) * ROAD_FACTOR
     if mode == "car":
         return int(round(d / 80 * 60 + 10))
