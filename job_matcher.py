@@ -31,6 +31,7 @@ import json
 import os
 import sqlite3
 import sys
+import time
 from array import array
 from importlib.util import find_spec
 from pathlib import Path
@@ -396,7 +397,7 @@ class Embedder:
                     str(path), start, end, mtime, self.model_id, vec.tolist()
                 )
             else:
-                vec = torch.tensor(cached)
+                vec = torch.tensor(cached, device=self.model.device)
             vecs.append(vec)
         return torch.nn.functional.normalize(torch.stack(vecs).mean(0), dim=0)
 
@@ -490,7 +491,16 @@ def main():
         "in category mode, minimum confidence of the verdict; "
         "ignored in rank mode",
     )
+    parser.add_argument(
+        "--time-budget",
+        type=float,
+        default=None,
+        help="Wall-clock seconds (from process start) after which scoring "
+        "stops gracefully, leaving already-written records intact; "
+        "ignored in embed/rank mode",
+    )
     args = parser.parse_args()
+    start_time = time.monotonic()
 
     mode = "criteria" if args.criteria else args.mode
 
@@ -545,6 +555,13 @@ def main():
         if mode == "rank":
             logps = {}
             for job_path in job_paths:
+                if args.time_budget and time.monotonic() - start_time > args.time_budget:
+                    print(
+                        f"time budget ({args.time_budget}s) reached, stopping early "
+                        f"({len(logps)} pairs scored)",
+                        file=sys.stderr,
+                    )
+                    break
                 job_text = job_path.read_text(encoding="utf-8")
                 for resume_path, resume_text in resumes.items():
                     logps[(resume_path, str(job_path))] = matcher.strong_logprob(
@@ -568,6 +585,12 @@ def main():
                     out_f.flush()
         else:
             for job_path in job_paths:
+                if args.time_budget and time.monotonic() - start_time > args.time_budget:
+                    print(
+                        f"time budget ({args.time_budget}s) reached, stopping early",
+                        file=sys.stderr,
+                    )
+                    break
                 job_text = job_path.read_text(encoding="utf-8")
                 for resume_path, resume_text in resumes.items():
                     criteria = None

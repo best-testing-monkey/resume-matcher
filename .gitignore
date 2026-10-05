@@ -1,3 +1,4 @@
 __pycache__/
 embeddings.sqlite
 *.gguf
+embeddings_*.sqlite

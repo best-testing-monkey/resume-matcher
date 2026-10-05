@@ -147,7 +147,10 @@ ending in `.gguf` selects the llama.cpp backend); `--mode
 `--criteria` (alias for `--mode criteria`); `--int8` (CPU HF backend only:
 int8 weight-only via torchao instead of bf16); `--min-strong` (default 0.3;
 in category mode it thresholds the verdict's confidence; ignored in rank
-mode).
+mode); `--time-budget` (seconds; classify/criteria/category/rank only —
+stops gracefully once elapsed wall-clock time exceeds it, leaving
+already-written records intact, so a run against a large job pool can be
+capped without reloading the model).
 
 Benchmark: `python benchmark.py run <mode>` scores the full
 `resumes/*.md` x `jobs/*.md` sweep into `results_<mode>.jsonl` and checks the
